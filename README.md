@@ -10,17 +10,21 @@ Small Object Dataset
 ![image](./visualize/fig12.jpg)
 
 
-## Prerequisites
+## Prerequisites 
+```
 python==3.9.0    
 numpy==1.24.0  
 opencv-python==4.10  
 opencv-contrib-python  
 scikit-learn==1.5.1  
 pandas==2.2.2  
-numba  
+numba
+```
 
 ## OS
-Windows   
+```
+Windows 
+```  
 
 ## Run
 ```Python
