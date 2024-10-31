@@ -12,12 +12,12 @@ Small Object Dataset
 
 ## Prerequisites
 python==3.9.0    
-numba  
 numpy==1.24.0  
 opencv-python==4.10  
 opencv-contrib-python  
 scikit-learn==1.5.1  
 pandas==2.2.2  
+numba  
 
 ## OS
 Windows   
@@ -32,7 +32,7 @@ Data should be put in *'./dataset/{name_of_dataset}/events.txt(csv)'*, or you ca
 
 
 ## Tracking results
-All the trajectories will be saved in *'./{name_of_dataset}_show/Tracks'*.
+All the trajectories will be saved in *'./output/{name_of_dataset}/Tracks'*.
 
 
 ## Visualize trackings
