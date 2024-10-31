@@ -29,7 +29,6 @@ def DFS(seeds, planar, neighbors=3):
         seeds ([seed, seed, ...])
         planar (array): used as a record of whether the point has been visited and also a constraint
         neighbors (int, optional): Defaults to 3
-        region_thres(int, optional): Defaults to 30
     Returns:
         regions (List): each region size should be restricted to (num, 2)
     """
@@ -53,9 +52,7 @@ def DFS(seeds, planar, neighbors=3):
         regions.append(region)
     return regions
 
-def Meanshift2D(im, bandwidth=2):
-    # convert im to data
-    sample = np.transpose(np.nonzero(im))
+def Meanshift2D(sample, bandwidth=2):
     clustering  = MeanShift(bandwidth=bandwidth).fit(sample)
     n_clusters, _ = clustering.cluster_centers_.shape
     regions = []
@@ -70,20 +67,10 @@ def watershed(im, gradient, th = 0.5):
     markers = gradient.copy()
     markers[markers > 255*th] = 0
     ret, markers = cv2.connectedComponents(markers)
-    markers = markers + 1 # 标记背景像素点为0，非背景像素点从1开始累加分别标记
+    markers = markers + 1
     
     im = np.repeat(im[:, :, None], 3, axis=2).astype(np.uint8)
-    labels = cv2.watershed(im, markers) #基于梯度的分水岭算法
-    '''Gradient watershed'''
-    '''
-    from skimage import segmentation
-    from scipy import ndimage as ndi
-    im = (((im - im.min())/(im.max() - im.min()))*255).astype(np.uint8)
-    gradient = (((gradient - gradient.min())/(gradient.max() - gradient.min()))*255).astype(np.uint8)
-    markers = gradient < 255*th
-    markers = ndi.label(markers)[0]
-    labels = segmentation.watershed(gradient, markers, mask=im) #基于梯度的分水岭算法
-    '''
+    labels = cv2.watershed(im, markers) 
     n_labels = labels.max()
     regions = []
     for i in range(2, n_labels+1):

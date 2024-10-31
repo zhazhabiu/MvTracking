@@ -7,8 +7,8 @@ import math
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from searching import DFS, watershed, Meanshift2D
-import trajectory_merge
 import gc
+from src.trajectory_merge import merge_planar_track, merge_track_inbatch, merge_twindow_track
 
 # Multi-Process
 Processpool = ProcessPoolExecutor(max_workers=3)
@@ -28,10 +28,23 @@ def GradientAmp(im):
     return Amplitude
 
 class TrackPerPlanar():
-    def __init__(self, planar_id, region_dots_thres, save_dir='./three-palanar-show'):
+    def __init__(self, planar_id, region_dots_thres, approach='RG', param=None, save_dir='./three-palanar-show'):
         self.planar_id = planar_id
         self.region_dots_thres = region_dots_thres
         self.save_dir = save_dir
+        self.approach = approach
+        if approach == 'RG':
+            # neighborhood
+            self.param = 5 if param is None else param
+        elif approach == 'WS':
+            # threshold
+            self.param = 0.7 if param is None else param
+        elif approach == 'MS':
+            # bandwidth
+            self.param = 25 if param is None else param
+        else:
+            print("Not implemented.")
+            raise
     
     def seed_generation(self, amp):
         """Initialize to number of points clusters
@@ -63,37 +76,36 @@ class TrackPerPlanar():
         return save
     
     def detect_(self, events, planar, Amplitude, realigned_T, shrink):
-        start_t = time.time()
-        '''Region Growing'''
-        seeds = self.seed_generation(Amplitude)
-        planar_regions = DFS(seeds,
-                            planar,
-                            neighbors=5)
-        '''Watershed'''
-        # planar_regions = watershed(planar, Amplitude, th=0.7)
-        '''Meanshift'''
-        # planar_regions = Meanshift2D(planar, bandwidth=25)
+        if self.approach == 'RG':
+            '''Region Growing'''
+            seeds = self.seed_generation(Amplitude)
+            planar_regions = DFS(seeds,
+                                planar,
+                                neighbors=self.param)
+        elif self.approach == 'WS':
+            '''Watershed'''
+            planar_regions = watershed(planar, Amplitude, th=self.param)
+        else:
+            '''Meanshift'''
+            planar_regions = Meanshift2D(planar, bandwidth=self.param)
         
         if len(planar_regions)==0:
             return self.planar_id, []
         if self.planar_id != 0 and len(planar_regions) > 1:
-            planar_regions = trajectory_merge.merge_planar_track(planar_regions, self.planar_id)
+            planar_regions = merge_planar_track(planar_regions, self.planar_id)
             
         """unwrap the searched regions"""
         planar_record_region = []
         cnt = 0
-        spend_t = 0 
                 
         for region_ in planar_regions:
             cnt += 1
-            start_t = time.time()
             origin_coor_save = self.unwrap_compress_axis(region_, \
                                                         events[:, [(self.planar_id+2)%3, (self.planar_id+1)%3]], \
                                                         events[:, self.planar_id], events[:, -1],\
                                                         realigned_T, shrink)
             if len(origin_coor_save) <= self.region_dots_thres:
                 continue
-            spend_t += time.time() - start_t
             # 0=j: y, x, t, p = y, x, yy 2, xx 1, tt 
             # 1=j: t, y, x, p = t, y, tt 0, yy 2, xx
             # 2=j: x, t, y, p = x, t, xx 1, tt 0, yy
@@ -105,29 +117,31 @@ class TrackPerPlanar():
 
 class MultiViewTracker():
     def __init__(self, events_stream, XOY_size, t_axissize=500, 
-                 save_dir='./three-palanar-show',
-                 dt=2000, dn=2000, theta=math.pi/10, b_search=9,
-                 region_dots_thres=20):
+                 save_dir='./output', dt=2000, dn=2000, 
+                 theta=math.pi/10, b_search=9, region_dots_thres=20, 
+                 approach='RG', param=None):
         super(MultiViewTracker, self).__init__()
         self.events = events_stream.copy() # [t, x, y, p]
         self.batch_search = b_search
         self.region_dots_thres = region_dots_thres
         self.save_dir = save_dir
-        self.t_axissize = t_axissize
+        self.t_axissize = t_axissize   # if neccessary, set this value to limit the t_size.
         self.shrinks = 1
         self.t_shape = 0
+        self.approach = approach
+        self.param = param
         # timestamp reset
         self.zero_timestamp = self.events[0, 0]
         self.events[:, 0] = self.events[:, 0] - self.events[0, 0]
         if dt is None:
-            self.intervals = list(range(self.events[0, 0], self.events[-1, 0], dn))
+            self.intervals = list(range(0, len(self.events), dn))
         else:
             self.intervals = []
             for start_t in np.arange(self.events[0, 0], self.events[-1, 0], dt):
                 start_ind = np.nonzero(self.events[:, 0] >= start_t)[0][0]
                 self.intervals.append(start_ind)
         self.intervals.append(len(self.events)-1)
-        self.theta = theta
+        self.theta = theta # angular error
         self.scale = 0.8
         self.XOY_size = XOY_size
         self.trajectories = []  # save the trajectories within batch_search time windows
@@ -144,7 +158,7 @@ class MultiViewTracker():
             indices (np.array): events stream
             planar_id (int): index of projection planar
         Returns:
-            planar
+            planar, gradient
         """ 
         if planar_id == 1:
             # Timestamp-realigned
@@ -175,10 +189,12 @@ class MultiViewTracker():
             coords, vals = np.unique(indices[:, [2, 1]], axis=0, return_counts=True)
             planar[coords[:, 0], coords[:, 1]] = vals
             del coords, vals
-        """mini-gaussian pyramid enhance"""
-        planar = self.gaussian_pyramid(planar, planar_size)
-        Amplitude = GradientAmp(planar)
-        return planar, Amplitude 
+        if self.approach != 'MS':
+            """mini-gaussian pyramid enhance"""
+            planar = self.gaussian_pyramid(planar, planar_size)
+            Amplitude = GradientAmp(planar)
+            return planar, Amplitude 
+        return coords, None 
 
     def gaussian_pyramid(self, input, planar_size):
         out0 = cv2.GaussianBlur(input, (3, 3), self.scale/0.5)
@@ -214,16 +230,17 @@ class MultiViewTracker():
         cur_tracks = self.merge_two_planar(mergeXOY_YOT, TOX)
         del mergeXOY_YOT, TOX
         
-        cur_tracks = trajectory_merge.merge_track_inbatch(cur_tracks, self.realigned_T, self.shrinks, self.theta, self.region_dots_thres)
+        cur_tracks = merge_track_inbatch(cur_tracks, self.realigned_T, self.shrinks, 
+                                                          self.theta, self.region_dots_thres, 
+                                                          use_c1=True, use_c2=True)
         
         if len(cur_tracks) == 0:
             return
         cur_tracks_rt = copy.deepcopy(cur_tracks)
-        match_ids = trajectory_merge.merge_twindow_track(self.trajectories, 
-                                        cur_tracks_rt, 
-                                        self.realigned_T, 
-                                        self.shrinks,
-                                        self.theta)
+        match_ids = merge_twindow_track(self.trajectories, cur_tracks_rt, 
+                                                        self.realigned_T, self.shrinks,
+                                                        use_c2=True, use_c3=True,
+                                                        angle_error=self.theta)
         '''update self.trajectories and self.trajec_ids'''
         max_id = -1 if len(self.trajec_ids)==0 else max(self.trajec_ids) 
         cur_ids = []
@@ -239,45 +256,48 @@ class MultiViewTracker():
                 self.trajec_ids.append(max_id)
                 self.last_use.append(batch)
                 cur_ids.append(max_id)
-        trajectories = []
-        new_ids = []
-        new_last_use = []
-        for i, j in enumerate(self.last_use):
-            if batch < self.batch_search or j >= batch-self.batch_search+1:
-                trajectories.append(self.trajectories[i])
-                new_ids.append(self.trajec_ids[i])
-                new_last_use.append(j)
-        self.trajectories = trajectories
-        self.trajec_ids = new_ids
-        self.last_use = new_last_use
-        '''show_3d_events(cur_tracks, cur_ids, batch, self.save_dir)'''
+        # clear the tracks out of the search batches
+        if batch >= self.batch_search:
+            # reset the realigned timestamps to 0 every self.batch_search window
+            trajectories = []
+            new_ids = []
+            new_last_use = []
+            for i, j in enumerate(self.last_use):
+                # update the timestamps of trakers & delete the trackers out of the search window
+                if j >= batch-self.batch_search+1:
+                    trajectories.append(self.trajectories[i])
+                    new_ids.append(self.trajec_ids[i])
+                    new_last_use.append(j)
+            self.trajectories = trajectories
+            self.trajec_ids = new_ids
+            self.last_use = new_last_use
+            del trajectories, new_ids, new_last_use
+            
         for id, trajectory in zip(cur_ids, cur_tracks):
             trajectory = trajectory[np.argsort(trajectory[:, 0])]
             trajectory[:, 0] = trajectory[:, 0] + self.zero_timestamp # timestamp recovery
             with open(f'{self.save_dir}/Tracks/{id}.txt', 'a+') as f:
                 np.savetxt(f, np.c_[trajectory], fmt='%d', delimiter=',') # us, x, y, p
-            del trajectory
-        del pid, planars, cur_tracks, deal_res, trajectories, new_ids, match_ids, cur_tracks_rt, new_last_use, max_id
+        del pid, planars, cur_tracks, deal_res, match_ids, cur_tracks_rt, max_id
     
     def detect(self):
         """
         Detect the trajectory within batches
         """
-        planar_dets = [TrackPerPlanar(i, self.region_dots_thres, self.save_dir) for i in range(3)] # XOY YOT TOX
+        planar_dets = [TrackPerPlanar(i, self.region_dots_thres, self.approach, self.param, self.save_dir) for i in range(3)] # XOY YOT TOX
         for i, start_ind in enumerate(self.intervals[:-1]):
             end_ind = self.intervals[i+1]
             indices = self.events[start_ind:end_ind, :] # [t, x, y, p]
             XOY, XOY_amp = self.integrate_to_planar(indices, 0)
-            denoise_indices = indices
-            YOT, YOT_amp = self.integrate_to_planar(denoise_indices, 1)
-            TOX, TOX_amp = self.integrate_to_planar(denoise_indices, 2)
+            YOT, YOT_amp = self.integrate_to_planar(indices, 1)
+            TOX, TOX_amp = self.integrate_to_planar(indices, 2)
             start_time = time.time()
             inputs0 = [XOY, YOT, TOX]
             inputs1 = [XOY_amp, YOT_amp, TOX_amp]
             """each planar dealing""" 
             deals = []
             for j in range(3):
-                deal = Processpool.submit(planar_dets[j].detect_, denoise_indices, inputs0[j], inputs1[j], self.realigned_T, self.shrinks)
+                deal = Processpool.submit(planar_dets[j].detect_, indices, inputs0[j], inputs1[j], self.realigned_T, self.shrinks)
                 deals.append(deal)
             
             deal_res = []
@@ -285,7 +305,7 @@ class MultiViewTracker():
                 deal_res.append(deal.result())
                 del deal
             
-            del indices, denoise_indices, inputs0, inputs1, XOY, YOT, TOX, XOY_amp, YOT_amp, TOX_amp, deals
+            del indices, inputs0, inputs1, XOY, YOT, TOX, XOY_amp, YOT_amp, TOX_amp, deals
             gc.collect()
             """fuse three planar"""
             self.planar_merge(deal_res, i)

@@ -34,15 +34,16 @@ def load_dataset(path_dataset, sequence, fname):
     return events_set, t_intervals
 
 if __name__ == '__main__':
+    theta = 30
     dataset_path, sequence, fname, image_size, dn = 'dataset', 'shapes_translation', 'events.txt', (180, 240), 1800 # number of events
     # dataset_path, sequence, fname, image_size, dt = 'dataset', 'star_tracking', 'Sequence1.csv', (180, 240), 40000 # us
     
     events_set, t_intervals = load_dataset(dataset_path, sequence, fname)
     
     if sequence=='star_tracking':
-        save_dir = './' + sequence + '_show' + fname[:-4]
+        save_dir = './output' + sequence + fname[:-4]
     else:
-        save_dir = './' + sequence + '_show'
+        save_dir = './output' + sequence
     if not os.path.exists(save_dir):
         os.makedirs(os.path.join(save_dir, 'Tracks'))
     else:
@@ -51,7 +52,8 @@ if __name__ == '__main__':
             
     import math
     print(save_dir)
-    L = MultiViewTracker(events_set, image_size, t_axissize=500, 
+    L = MultiViewTracker(events_set, image_size, t_axissize=200, 
                             save_dir=save_dir, dt=None, dn=dn, 
-                            theta=math.pi/6, b_search=9)
+                            theta=math.pi/180*theta, b_search=9,
+                            approach='RG', param=5)
     L.detect()

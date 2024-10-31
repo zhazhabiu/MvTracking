@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 color = []
 for a in np.linspace(0, 255, 5):
@@ -21,8 +22,11 @@ if __name__ == '__main__':
     ax.set_ylabel('X')
     ax.set_zlabel('Y')
     
-    sequence = './visualize/0.txt'
-    track = np.loadtxt(sequence, dtype=np.int64, delimiter=',') # [t, x, y, p]
-    ax.scatter3D(track[:, 0], track[:, 1], track[:, 2], c=plt_color[2%len(plt_color)], marker='.')
+    sequence = './visualize/'
+    files = os.listdir(sequence)
+    for cnt, f in enumerate(files):
+        if f.endswith('txt'):
+            track = np.loadtxt(sequence+'/'+f, dtype=np.int64, delimiter=',') # [t, x, y, p]
+            ax.scatter3D(track[:, 0], track[:, 1], track[:, 2], c=plt_color[cnt%len(plt_color)], marker='.')
     plt.savefig(f'./visualize/viz.png')
     plt.close()
