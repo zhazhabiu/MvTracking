@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import _winapi
 _winapi.SYNCHRONIZE = 1
+import sys
+sys.path.append(os.getcwd())
 from MvTracker import MultiViewTracker, unwrap_compress_axis
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from searching import seed_generation, DFS, watershed, Meanshift2D
