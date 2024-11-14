@@ -3,7 +3,7 @@ This is the official implementation of《MvT: Event-based Multi-view Projection 
 Multiple Object Tracking》using Python.  
 
 
-The demo is published.
+The demo is published.  
 Source code will be published when the paper is accepted.
 
 ## Examples on Experiments 
@@ -16,13 +16,12 @@ Small Object Dataset
 
 ## Prerequisites 
 ```
-python==3.9.0    
+python==3.7  
 numpy==1.24.0  
 opencv-python==4.10  
-opencv-contrib-python  
-scikit-learn==1.5.1  
 pandas==2.2.2  
-numba
+scikit-learn==1.5.1
+opencv-contrib-python
 ```
 
 ## OS
@@ -30,18 +29,14 @@ numba
 Windows 
 ```  
 
-## Run Demo
+## Run 
+if your Python=3.7, please take all the files in *cp37* to the work directory.  
+And excute the following code.  
 ```Python
-python demo/main.cmd  
- # Please run in the environment with Prerequisites
+python demo/demo.py  
 ```
 
-## Run source code (not published yet)
-```Python
-python src/main.py  
-```
-
-## Data preparation for source code (not published yet)
+## Data preparation for source code
 Data should be put in *'./dataset/{name_of_dataset}/events.txt(csv)'*, or you can change the file path in *src/main.py*.
 
 
