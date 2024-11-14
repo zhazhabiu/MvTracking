@@ -30,7 +30,7 @@ Windows
 ```  
 
 ## Run 
-if your Python=3.7, please take all the files in *cp37* to the work directory.  
+If your Python=3.7, please take all the files in *cp37* to the work directory.  
 And excute the following code.  
 ```Python
 python demo/demo.py  
